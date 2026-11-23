@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Kun Asatoura V5 - ULTIMATE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body{background:#0a0a0a;overflow:hidden;font-family:'Segoe UI',system-ui}
+canvas{display:block;width:100vw;height:100vh}
+#hud{position:fixed;top:0;left:0;width:100%;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;color:#fff;font-weight:900;z-index:10;text-shadow:0 2px 6px #000}
+#hud b{background:rgba(0,0,0,.5);padding:4px 10px;border-radius:20px}
+#menu{position:fixed;inset:0;background:radial-gradient(#1a5c1a,#051405);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;color:#fff;text-align:center}
+#menu h1{font-size:46px;line-height:1;text-shadow:0 6px 0 #000} #menu h1 span{color:#ffe600}
+.btn-main{margin-top:18px;padding:14px 36px;border:none;border-radius:30px;background:linear-gradient(#ffe600,#ff9d00);color:#000;font-weight:900;font-size:20px;box-shadow:0 8px 0 #8a4d00}
+#shop{margin-top:16px;display:flex;gap:8px}
+.shop-item{padding:8px 12px;background:rgba(255,255,255,.15);border-radius:14px;font-size:12px;border:1px solid rgba(255,255,255,.2)}
+#joy{position:fixed;bottom:20px;left:14px;width:124px;height:124px;background:rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.25);border-radius:50%;z-index:10}
+#stick{position:absolute;width:54px;height:54px;background:#fff;border-radius:50%;left:35px;top:35px;box-shadow:0 5px 14px #000}
+#actions{position:fixed;bottom:16px;right:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;z-index:10}
+.ab{width:76px;height:76px;border-radius:50%;border:none;font-weight:900;font-size:11px;color:#fff;box-shadow:0 6px 0 rgba(0,0,0,.7);line-height:1.1}
+#shoot{background:radial-gradient(#ff6b6b,#a00)} #pass{background:radial-gradient(#6bb8ff,#004a9a)} #rainbow{background:radial-gradient(#ffd86b,#b57e00);color:#000} #elast{background:radial-gradient(#9b6bff,#4a00a0)}
+#msg{position:fixed;top:46%;left:50%;transform:translate(-50%,-50%);font-size:52px;font-weight:900;color:#fff;text-shadow:0 6px 0 #000;z-index:30;display:none;pointer-events:none;text-align:center}
+#levelBar{position:fixed;bottom:0;left:0;height:6px;background:#ffe600;z-index:11;transition:width .3s}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><span>⭐ ليفل <b id="lvl">1/5</b> | ⚽ <b id="sc">0</b></span><span>💰 <b id="coins">0</b> | ⏱️ <b id="tm">60</b></span></div>
+<div id="menu">
+<h1>KUN<br><span>ASATOURA</span><br>V5</h1>
+<p style="margin-top:8px;opacity:.8">من شبرا للعالمية</p>
+<button class="btn-main" id="play">العب يا أسطورة ▶</button>
+<div id="shop"></div>
+</div>
+<div id="joy"><div id="stick"></div></div>
+<div id="actions">
+<button class="ab" id="rainbow">رينبو<br>🌈</button>
+<button class="ab" id="elast">مطاطية<br>🤹</button>
+<button class="ab" id="pass">كوبري<br>🦶</button>
+<button class="ab" id="shoot">صاروخ<br>🚀</button>
+</div>
+<div id="msg"></div>
+<div id="levelBar"></div>
+<script>
+const canvas=document.getElementById('c'),X=canvas.getContext('2d');
+let W,H;function RS(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}RS();addEventListener('resize',RS);
+let lvl=1,score=0,coins=parseInt(localStorage.getItem('kun_coins')||'0'),time=60,need=3,playing=false;
+let boots=parseInt(localStorage.getItem('kun_boots')||'0');
+let px,py,vx=0,vy=0,face=1,hasBall=true;
+let ball={x:0,y:0,vx:0,vy:0,r:12};
+let defenders=[],gk={x:0,y:0,tx:0,vy:0,diving:0};
+let particles=[],trails=[];
+let joy={x:0,y:0}; let speedMult=[1,1.35,1.7][boots];
+const LEVELS=[
+ {name:'حارة شبرا - تراب',col:'#7a4a1a',en:2,gkSp:0.03},
+ {name:'سطح بولاق',col:'#5a6a7a',en:3,gkSp:0.05},
+ {name:'ملعب المدرسة',col:'#2a9a3a',en:3,gkSp:0.07},
+ {name:'حارة البرازيل - فافيلا',col:'#d95a1a',en:4,gkSp:0.09},
+ {name:'النهائي - استاد القاهرة',col:'#1a7a2a',en:5,gkSp:0.11},
+];
+function initLevel(){
+ px=W*0.25;py=H/2;vx=vy=0;ball.x=px+30;ball.y=py;ball.vx=ball.vy=0;hasBall=true;defenders=[];
+ for(let i=0;i<LEVELS[lvl-1].en;i++)defenders.push({x:W*0.5+Math.random()*W*0.3,y:60+Math.random()*(H-120),vx:0,vy:0,cool:0,stun:0});
+ gk.x=W-55;gk.y=H/2;gk.tx=H/2;time=60;score=0;document.getElementById('lvl').innerText=lvl+'/5';updateHUD();
+}
+function updateHUD(){document.getElementById('sc').innerText=score;document.getElementById('coins').innerText=coins;document.getElementById('tm').innerText=time;document.getElementById('levelBar').style.width=(score/need*100)+'%'}
+function showMsg(t,ms=900){const m=document.getElementById('msg');m.innerText=t;m.style.display='block';setTimeout(()=>m.style.display='none',ms)}
+function boom(x,y,c){for(let i=0;i<18;i++)particles.push({x,y,vx:(Math.random()-.5)*14,vy:(Math.random()-.5)*14-2,life:32,c})}
+function buildShop(){
+ const s=document.getElementById('shop');s.innerHTML='';
+ [{n:'جزمة عادية',p:0,i:0},{n:'نايك فاست ⚡',p:100,i:1},{n:'أسطورة 👑',p:350,i:2}].forEach(o=>{
+   const d=document.createElement('div');d.className='shop-item';d.style.outline=boots==o.i?'2px solid #ffe600':'';d.innerHTML=`${o.n}<br>${o.p==0?'مجاني':o.p+'💰'}`;d.onclick=()=>{if(coins>=o.p){coins-=o.p;boots=o.i;localStorage.setItem('kun_boots',boots);localStorage.setItem('kun_coins',coins);speedMult=[1,1.35,1.7][boots];buildShop();updateHUD();showMsg('اشتريت '+o.n)}};s.appendChild(d);
+ });
+}
+buildShop();
+const joyE=document.getElementById('joy'),stick=document.getElementById('stick');
+function jm(e){const r=joyE.getBoundingClientRect();const t=e.touches?e.touches[0]:e;let dx=t.clientX-(r.left+62),dy=t.clientY-(r.top+62);let d=Math.hypot(dx,dy),a=Math.atan2(dy,dx);d=Math.min(52,d);joy.x=Math.cos(a)*d/52;joy.y=Math.sin(a)*d/52;stick.style.left=35+joy.x*36+'px';stick.style.top=35+joy.y*36+'px';if(Math.abs(joy.x)>0.1)face=joy.x>0?1:-1}
+joyE.addEventListener('touchstart',e=>jm(e));joyE.addEventListener('touchmove',e=>{jm(e);e.preventDefault()},{passive:false});
+addEventListener('touchend',()=>{joy.x=0;joy.y=0;stick.style.left='35px';stick.style.top='35px'});
+document.getElementById('shoot').ontouchstart=e=>{e.preventDefault();if(!hasBall)return;ball.vx=face*(16+boots*2);ball.vy=(joy.y*6);hasBall=false;navigator.vibrate?.(70)};
+document.getElementById('pass').ontouchstart=e=>{e.preventDefault();if(!hasBall)return;ball.x+=face*18;ball.vx=face*9;hasBall=false;setTimeout(()=>{hasBall=true},250);showMsg('كوبري!');};
+document.getElementById('elast').ontouchstart=e=>{e.preventDefault();if(!hasBall)return;let t=0;let id=setInterval(()=>{t+=0.35;px+=Math.sin(t)*7*face;trails.push({x:px,y:py,life:12});if(t>7){clearInterval(id);ball.vx=face*12;hasBall=false}},16);showMsg('مطاطية!')};
+document.getElementById('rainbow').ontouchstart=e=>{e.preventDefault();if(!hasBall)return;ball.vy=-14;ball.vx=face*6;hasBall=false;setTimeout(()=>{ball.vy=4},220);showMsg('رينبووو! 🌈')};
+document.getElementById('play').onclick=()=>{document.getElementById('menu').style.display='none';playing=true;initLevel();};
+function drawField(col){
+ X.fillStyle=col;X.fillRect(0,0,W,H);X.strokeStyle='rgba(255,255,255,.55)';X.lineWidth=3;X.strokeRect(18,18,W-36,H-36);
+ X.beginPath();X.moveTo(W/2,18);X.lineTo(W/2,H-18);X.stroke();
+ X.fillStyle='#fff';X.fillRect(W-28,H/2-110,10,220);
+}
+function loop(){
+ if(!playing){requestAnimationFrame(loop);return}
+ drawField(LEVELS[lvl-1].col);
+ vx+=joy.x*1.15*speedMult;vy+=joy.y*1.15*speedMult;vx*=0.84;vy*=0.84;px+=vx;py+=vy;
+ px=Math.max(28,Math.min(W-28,px));py=Math.max(28,Math.min(H-28,py));
+ if(!hasBall){ball.x+=ball.vx;ball.y+=ball.vy;ball.vx*=0.987;ball.vy*=0.987;ball.vy+=0.12;if(ball.y<22||ball.y>H-22)ball.vy*=-0.7;}
+ else {ball.x=px+face*22;ball.y=py+8}
+ defenders.forEach(d=>{
+   if(d.stun>0){d.stun--;return}
+   let dx=(hasBall?ball.x:px)-d.x,dy=(hasBall?ball.y:py)-d.y;let dist=Math.hypot(dx,dy);
+   if(dist<320){d.vx+=dx/dist*0.18;d.vy+=dy/dist*0.18}
+   d.vx*=0.9;d.vy*=0.9;d.x+=d.vx;d.y+=d.vy;
+   if(Math.hypot(d.x-ball.x,d.y-ball.y)<28 && !hasBall){ball.vx=(Math.random()-.5)*12;ball.vy=(Math.random()-.5)*12;boom(d.x,d.y,'#ff0');d.stun=40}
+   if(Math.hypot(d.x-px,d.y-py)<30 && hasBall && Math.random()<0.04){hasBall=false;ball.vx=face*-6;ball.vy=(Math.random()-.5)*10;d.stun=30;showMsg('اتقطعت! 😤',600)}
+   X.fillStyle=d.stun>0?'#888':'#111';X.beginPath();X.arc(d.x,d.y,16,0,7);X.fill();
+ });
+ gk.tx+=(ball.y-gk.tx)*LEVELS[lvl-1].gkSp;gk.vy+=(gk.tx-gk.y)*0.12;gk.vy*=0.8;gk.y+=gk.vy;
+ gk.y=Math.max(H/2-95,Math.min(H/2+95,gk.y));
+ if(!hasBall && Math.hypot(ball.x-gk.x,ball.y-gk.y)<42 && gk.diving<=0){gk.diving=18;ball.vx=-Math.abs(ball.vx)*0.6;boom(gk.x,gk.y,'#ffe600')}
+ if(gk.diving>0){gk.diving--;gk.x=W-55+Math.sin(gk.diving)*18}else gk.x+=(W-55-gk.x)*0.15;
+ X.fillStyle='#ffe600';X.beginPath();X.arc(gk.x,gk.y,18,0,7);X.fill();
+ if(ball.x>W-18 && ball.y>H/2-100 && ball.y<H/2+100){score++;coins+=10+boots*5;localStorage.setItem('kun_coins',coins);boom(ball.x,ball.y,'#fff');showMsg(['GOOOAL!','يا لعيييب!'][score%2]);updateHUD();if(score>=need){if(lvl<5){lvl++;initLevel()}else{playing=false;document.getElementById('menu').style.display='flex';}}else{ball.x=W*0.4;hasBall=true}}
+ X.fillStyle='rgba(0,0,0,.35)';X.beginPath();X.ellipse(ball.x,ball.y+10,ball.r*1.2,ball.r*0.6,0,0,7);X.fill();
+ X.fillStyle='#fff';X.beginPath();X.arc(ball.x,ball.y,ball.r,0,7);X.fill();
+ X.save();X.translate(px,py);let shirt=['#0a5cff','#ff1a1a','#00ff88'][boots]||'#0a5cff';X.fillStyle='#111';X.fillRect(-11,10,9,13);X.fillRect(3,10,9,13);X.fillStyle=shirt;X.fillRect(-14,-14,28,24);X.fillStyle='#ffdbac';X.beginPath();X.arc(0,-20,12,0,7);X.fill();X.restore();
+ trails.forEach((t,i)=>{t.life--;X.fillStyle=`rgba(255,255,255,${t.life/12})`;X.fillRect(t.x,t.y,4,4);if(t.life<=0)trails.splice(i,1)});
+ particles.forEach((p,i)=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.25;p.life--;X.fillStyle=p.c;X.fillRect(p.x,p.y,4,4);if(p.life<=0)particles.splice(i,1)});
+ requestAnimationFrame(loop);
+}
+let timer=setInterval(()=>{if(!playing)return;time--;document.getElementById('tm').innerText=time;if(time<=0){playing=false;showMsg('الوقت خلص! جبت '+score+'/'+need,1500);setTimeout(()=>{document.getElementById('menu').style.display='flex';initLevel()},1500)}},1000);
+loop();
+</script>
+</body>
+</html>
